@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSeek 余额桌面宠物 —— 让一只小猫帮你盯着 API 余额</title>
+<meta name="description" content="一只趴在桌面上的像素小猫，实时显示你的 DeepSeek API 账户余额。余额偏低会变脸提醒，支持开机自启、窗口置顶、拖拽摆位。Windows 10/11，免安装 Python。">
+<link rel="icon" href="assets/icon.png">
+<link rel="canonical" href="https://yangxinke.top/">
+<style>
+  :root{
+    --blue:#4D6BFE; --blue-d:#3A56E0; --blue-l:#EEF2FF;
+    --ink:#0E1320; --text:#232A3B; --muted:#6B7484;
+    --line:#E6E9F0; --bg:#FFFFFF; --soft:#F7F8FC;
+    --ok:#1F9D55; --warn:#E5484D;
+    --radius:16px; --maxw:1120px;
+    --font:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",
+           "Source Han Sans SC","Noto Sans CJK SC","Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--font);color:var(--text);background:var(--bg);
+       line-height:1.75;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  img{max-width:100%;display:block}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+  /* ---------- 导航 ---------- */
+  .nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.86);
+       backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  .nav .wrap{display:flex;align-items:center;gap:28px;height:64px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;color:var(--ink)}
+  .brand img{width:30px;height:30px;border-radius:8px}
+  .nav nav{display:flex;gap:24px;margin-left:auto;font-size:14px;color:var(--muted)}
+  .nav nav a:hover{color:var(--blue)}
+  .nav .cta{background:var(--blue);color:#fff;padding:8px 18px;border-radius:999px;
+            font-size:14px;font-weight:600;transition:.2s}
+  .nav .cta:hover{background:var(--blue-d);transform:translateY(-1px)}
+  @media(max-width:820px){.nav nav{display:none}}
+
+  /* ---------- Hero ---------- */
+  .hero{position:relative;overflow:hidden;color:#fff;
+        background:radial-gradient(1100px 520px at 78% -10%,#5E7BFF 0%,transparent 60%),
+                   linear-gradient(160deg,#101728 0%,#1B2440 55%,#243056 100%)}
+  .hero .wrap{padding:76px 24px 0;text-align:center}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:999px;
+        background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);
+        font-size:13px;color:#C9D4FF;margin-bottom:22px}
+  .dot{width:7px;height:7px;border-radius:50%;background:#5BE49B;box-shadow:0 0 0 4px rgba(91,228,155,.18)}
+  .hero h1{font-size:clamp(30px,4.6vw,52px);line-height:1.24;font-weight:800;letter-spacing:-.5px}
+  .hero h1 em{font-style:normal;color:#9DB2FF}
+  .hero .sub{margin:18px auto 0;max-width:660px;font-size:clamp(15px,1.7vw,17px);
+             color:#B9C4E0;line-height:1.85}
+  .btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:34px}
+  .btn{display:inline-flex;align-items:center;gap:10px;padding:14px 30px;border-radius:12px;
+       font-weight:700;font-size:16px;transition:.2s;border:1px solid transparent;cursor:pointer}
+  .btn-main{background:var(--blue);color:#fff;box-shadow:0 10px 30px rgba(77,107,254,.35)}
+  .btn-main:hover{background:var(--blue-d);transform:translateY(-2px);
+                  box-shadow:0 14px 36px rgba(77,107,254,.45)}
+  .btn-ghost{background:rgba(255,255,255,.08);color:#E6EBFF;border-color:rgba(255,255,255,.22)}
+  .btn-ghost:hover{background:rgba(255,255,255,.16);transform:translateY(-2px)}
+  .meta{margin-top:16px;font-size:13px;color:#8C99BC}
+  .shot{margin:52px auto -6px;max-width:960px;border-radius:18px 18px 0 0;overflow:hidden;
+        border:1px solid rgba(255,255,255,.16);border-bottom:none;
+        box-shadow:0 -10px 60px rgba(0,0,0,.35)}
+  .shot img{width:100%}
+
+  /* ---------- 通用区块 ---------- */
+  section{padding:82px 0}
+  .sec-head{text-align:center;max-width:680px;margin:0 auto 46px}
+  .eyebrow{font-size:13px;font-weight:700;letter-spacing:1.6px;color:var(--blue);
+           text-transform:uppercase;margin-bottom:12px}
+  h2{font-size:clamp(24px,3vw,34px);font-weight:800;color:var(--ink);letter-spacing:-.4px}
+  .sec-head p{margin-top:14px;color:var(--muted);font-size:16px}
+
+  /* ---------- 功能卡片 ---------- */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:620px){.grid{grid-template-columns:1fr}}
+  .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+        padding:26px;transition:.22s}
+  .card:hover{border-color:#C9D4FF;box-shadow:0 12px 34px rgba(31,45,90,.09);
+              transform:translateY(-3px)}
+  .ico{width:42px;height:42px;border-radius:11px;background:var(--blue-l);color:var(--blue);
+       display:grid;place-items:center;font-size:20px;margin-bottom:15px}
+  .card h3{font-size:16.5px;font-weight:700;color:var(--ink);margin-bottom:8px}
+  .card p{font-size:14.5px;color:var(--muted);line-height:1.8}
+
+  /* ---------- 表情 ---------- */
+  .poses{background:var(--soft);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .poses img{border-radius:var(--radius);border:1px solid var(--line);
+             box-shadow:0 10px 30px rgba(31,45,90,.07);background:#fff}
+
+  /* ---------- 安装步骤 ---------- */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;counter-reset:s}
+  @media(max-width:820px){.steps{grid-template-columns:1fr}}
+  .step{position:relative;padding:26px 24px 24px;border-radius:var(--radius);
+        background:#fff;border:1px solid var(--line)}
+  .step::before{counter-increment:s;content:counter(s);position:absolute;top:-15px;left:24px;
+        width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;
+        display:grid;place-items:center;font-weight:800;font-size:15px;
+        box-shadow:0 6px 16px rgba(77,107,254,.32)}
+  .step h3{margin-top:10px;font-size:16px;color:var(--ink);font-weight:700}
+  .step p{margin-top:8px;font-size:14.5px;color:var(--muted)}
+  .step code{background:var(--blue-l);color:var(--blue-d);padding:2px 7px;border-radius:6px;
+             font-size:13px;font-family:Consolas,Monaco,monospace}
+
+  /* ---------- 下载卡片 ---------- */
+  .dl{background:var(--soft);border-top:1px solid var(--line)}
+  .dlgrid{display:grid;grid-template-columns:1.35fr 1fr;gap:22px;align-items:stretch}
+  @media(max-width:860px){.dlgrid{grid-template-columns:1fr}}
+  .dlcard{background:#fff;border:1.5px solid var(--line);border-radius:var(--radius);padding:30px;
+          display:flex;flex-direction:column}
+  .dlcard.rec{border-color:var(--blue);box-shadow:0 16px 44px rgba(77,107,254,.14)}
+  .tag{display:inline-block;background:var(--blue);color:#fff;font-size:12px;font-weight:700;
+       padding:3px 10px;border-radius:999px;margin-bottom:14px;align-self:flex-start}
+  .tag.gray{background:#EDEFF5;color:var(--muted)}
+  .dlcard h3{font-size:19px;font-weight:800;color:var(--ink)}
+  .dlcard .desc{margin-top:8px;font-size:14.5px;color:var(--muted);flex:1}
+  .dlcard ul{margin:16px 0 22px;padding:0;list-style:none;font-size:14px;color:var(--text)}
+  .dlcard li{padding-left:24px;position:relative;margin-bottom:8px}
+  .dlcard li::before{content:"✓";position:absolute;left:0;color:var(--ok);font-weight:800}
+  .dlbtn{display:block;text-align:center;background:var(--blue);color:#fff;font-weight:700;
+         padding:14px;border-radius:12px;transition:.2s}
+  .dlbtn:hover{background:var(--blue-d)}
+  .dlbtn.sec{background:#fff;color:var(--blue);border:1.5px solid var(--blue)}
+  .dlbtn.sec:hover{background:var(--blue-l)}
+  .filesize{text-align:center;font-size:12.5px;color:var(--muted);margin-top:10px}
+
+  /* ---------- 需求表 ---------- */
+  table{width:100%;border-collapse:collapse;font-size:14.5px;background:#fff;
+        border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  th,td{padding:14px 18px;text-align:left;border-bottom:1px solid var(--line)}
+  th{background:var(--soft);font-weight:700;color:var(--ink);width:190px}
+  tr:last-child th,tr:last-child td{border-bottom:none}
+
+  /* ---------- FAQ ---------- */
+  .faq{background:var(--soft);border-top:1px solid var(--line)}
+  details{background:#fff;border:1px solid var(--line);border-radius:12px;
+          margin-bottom:12px;overflow:hidden}
+  summary{padding:16px 20px;font-weight:700;font-size:15.5px;color:var(--ink);
+          cursor:pointer;list-style:none;position:relative}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"+";position:absolute;right:22px;top:50%;transform:translateY(-50%);
+                 color:var(--blue);font-size:20px;font-weight:700}
+  details[open] summary::after{content:"−"}
+  details p{padding:0 20px 18px;font-size:14.5px;color:var(--muted)}
+  details p code{background:var(--blue-l);color:var(--blue-d);padding:2px 7px;
+                 border-radius:6px;font-size:13px;font-family:Consolas,Monaco,monospace}
+
+  /* ---------- 页脚 ---------- */
+  footer{background:var(--ink);color:#8B96AE;padding:44px 0;font-size:13.5px}
+  footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+  footer b{color:#D8DEF0;font-weight:600}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/icon.png" alt="图标">DeepSeek 桌面宠物</a>
+    <nav>
+      <a href="#features">功能</a>
+      <a href="#poses">表情</a>
+      <a href="#install">安装</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    <a class="cta" href="#download">免费下载</a>
+  </div>
+</header>
+
+<a id="top"></a>
+<section class="hero">
+  <div class="wrap">
+    <span class="pill"><span class="dot"></span>v1.0.0 已发布 · Windows 10 / 11</span>
+    <h1>让一只小猫<br>帮你盯着 <em>DeepSeek</em> 的余额</h1>
+    <p class="sub">
+      它会趴在你的桌面上，实时显示 API 账户余额。余额偏低就当场变脸掉眼泪，
+      接口出错就哭给你看。透明无边框、永远置顶、可以拖着摆到任何角落。
+    </p>
+    <div class="btns">
+      <a class="btn btn-main" href="#download">免费下载</a>
+      <a class="btn btn-ghost" href="#features">看看它长什么样</a>
+    </div>
+    <p class="meta">约 20 MB · 不需要管理员权限 · 不用装 Python</p>
+    <div class="shot"><img src="assets/hero.png" alt="DeepSeek 余额桌面宠物运行效果"></div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Features</div>
+      <h2>一只猫该有的样子，它都有</h2>
+      <p>不是一张贴在桌面上的静态壁纸，而是一只有呼吸、会眨眼、能互动的活猫。</p>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="ico">💠</div>
+        <h3>实时余额，一眼看清</h3>
+        <p>鼠标移上去就弹出气泡：总余额、赠送余额、充值余额、刷新倒计时，全部列出来。
+           默认 5 分钟自动刷新一次，最短可调到 20 秒。</p>
+      </div>
+      <div class="card">
+        <div class="ico">😿</div>
+        <h3>余额偏低会变脸</h3>
+        <p>低于你设定的阈值，小猫立刻垂下眼睛掉眼泪，气泡转为红色警告，
+           不用再手动去官网查还剩多少钱。</p>
+      </div>
+      <div class="card">
+        <div class="ico">👀</div>
+        <h3>眼睛会跟着鼠标转</h3>
+        <p>光标移到哪儿，它的视线就追到哪儿。点一下会冒出爱心开心一下，
+           双击立即刷新余额，会撒星星和金币。</p>
+      </div>
+      <div class="card">
+        <div class="ico">🪟</div>
+        <h3>只看得见猫</h3>
+        <p>透明背景、无边框、不进任务栏。透明区域的鼠标点击会穿透到下层窗口，
+           完全不会挡住你操作别的软件。</p>
+      </div>
+      <div class="card">
+        <div class="ico">💤</div>
+        <h3>会打瞌睡</h3>
+        <p>晾着不管几分钟，它就趴下打呼冒 ZZZ。动一下鼠标立刻醒来，
+           继续盯着你的余额。</p>
+      </div>
+      <div class="card">
+        <div class="ico">🔒</div>
+        <h3>Key 只留在本机</h3>
+        <p>API Key 只写进你本机的配置文件，只发给 <b>api.deepseek.com</b> 官方接口，
+           不经过任何第三方服务器，没有任何统计上报。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="poses" id="poses">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Expressions</div>
+      <h2>六种表情，全是实时画出来的</h2>
+      <p>不是预录的 GIF —— 呼吸、摇尾巴、眨眼、耳朵抖动都是逐帧算出来的像素动画。</p>
+    </div>
+    <img src="assets/poses.png" alt="小猫的六种表情：待机、开心、余额偏低、打瞌睡、看你的鼠标、刷新中">
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Install</div>
+      <h2>三步，一分钟</h2>
+      <p>下载、双击、粘贴 Key。不需要装 Python，不需要管理员权限，不需要重启。</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <h3>下载并运行安装程序</h3>
+        <p>双击 <code>DeepSeekPet-Setup</code>，选好安装位置点「安装」。
+           装完会自动跳出小猫。</p>
+      </div>
+      <div class="step">
+        <h3>粘贴你的 API Key</h3>
+        <p>第一次运行会自动弹出设置面板，把 <code>sk-</code> 开头的 Key 贴进去，
+           点「测试连接」确认通了再保存。</p>
+      </div>
+      <div class="step">
+        <h3>把它拖到你喜欢的位置</h3>
+        <p>按住小猫拖到屏幕任意角落，松手就自动记住。下次开机它还在原地。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="dl" id="download">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Download</div>
+      <h2>下载</h2>
+      <p>两个版本功能完全一样，按你的习惯挑一个就行。</p>
+    </div>
+    <div class="dlgrid">
+      <div class="dlcard rec">
+        <span class="tag">推荐</span>
+        <h3>完整安装版</h3>
+        <p class="desc">带图形安装向导，自动创建桌面和开始菜单快捷方式，
+           并且会注册到「设置 → 应用」里，以后想卸载点一下就行。</p>
+        <ul>
+          <li>安装向导，可选择安装位置</li>
+          <li>自动创建桌面 + 开始菜单快捷方式</li>
+          <li>支持从「设置 → 应用」中正常卸载</li>
+          <li>免管理员权限，装在当前用户目录</li>
+        </ul>
+        <a class="dlbtn" href="download/DeepSeekPet-Setup-v1.0.0.exe" download>下载安装程序</a>
+        <div class="filesize">DeepSeekPet-Setup-v1.0.0.exe · 约 20 MB</div>
+      </div>
+      <div class="dlcard">
+        <span class="tag gray">绿色版</span>
+        <h3>免安装便携版</h3>
+        <p class="desc">整个文件夹解压到任何位置，双击里面的程序就能跑。不写注册表、
+           不建快捷方式、不进「设置 → 应用」，想删直接删文件夹。</p>
+        <ul>
+          <li>解压即用，不用安装</li>
+          <li>不写注册表，不留系统痕迹</li>
+          <li>启动更快（运行时不再自解包）</li>
+          <li>也不容易触发杀毒软件误报</li>
+        </ul>
+        <a class="dlbtn sec" href="download/DeepSeekPet-Portable-v1.0.0.zip" download>下载便携版</a>
+        <div class="filesize">DeepSeekPet-Portable-v1.0.0.zip · 约 11 MB</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Requirements</div>
+      <h2>运行环境</h2>
+    </div>
+    <table>
+      <tr><th>操作系统</th><td>Windows 10 / 11（64 位）</td></tr>
+      <tr><th>运行环境</th><td>不需要。Python 运行时已打包进 exe，双击即用</td></tr>
+      <tr><th>权限</th><td>不需要管理员权限，装在当前用户目录</td></tr>
+      <tr><th>磁盘占用</th><td>约 12 MB（安装版）；运行时内存约 40 MB</td></tr>
+      <tr><th>网络</th><td>需要能访问 api.deepseek.com（仅用于查询余额）</td></tr>
+      <tr><th>卸载</th><td>设置 → 应用 → 找到「DeepSeek 余额桌面宠物」→ 卸载</td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="faq" id="faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">FAQ</div>
+      <h2>常见问题</h2>
+    </div>
+
+    <details open>
+      <summary>需要先安装 Python 吗？</summary>
+      <p>不需要。安装包里已经内置了完整的 Python 运行时和图形界面库，
+         双击就能跑。这也是为什么安装程序有 20 MB。</p>
+    </details>
+
+    <details>
+      <summary>它会把我的 API Key 传到别的地方去吗？</summary>
+      <p>不会。Key 只写进你本机的配置文件（安装版在 <code>%APPDATA%\DeepSeekPet\config.json</code>），
+         程序只会把它发给你自己填的 DeepSeek 官方接口 <code>api.deepseek.com</code> 用于查询余额。
+         程序里没有任何统计、上报、更新检查一类的联网行为。
+         右键小猫 →「打开配置文件夹」可以直接看到那个文件。</p>
+    </details>
+
+    <details>
+      <summary>杀毒软件提示有风险怎么办？</summary>
+      <p>这是 PyInstaller 打包的 exe 常见的<b>误报</b>：因为它把 Python 运行时塞进了单个文件，
+         运行时会在临时目录解包自己，这个行为跟某些恶意软件的特征相似，所以启发式引擎容易误判。
+         遇到这种情况，直接改用<b>免安装便携版</b>即可 —— 它是普通文件夹形式，
+         运行时不需要自解包，几乎不会被误报。也可以把文件传到 VirusTotal 上核对，
+         或者使用项目源码（不到 1000 行 Python，全部是标准库，零第三方依赖）。</p>
+    </details>
+
+    <details>
+      <summary>安装程序打不开 / 一闪而过怎么办？</summary>
+      <p>少数情况下安全软件会拦住安装程序在临时目录解包自己。换成<b>免安装便携版</b>就好：
+         解压后直接运行文件夹里的 <code>DeepSeek桌面宠物.exe</code>，效果完全一样，
+         只是需要你自己把它拖到桌面建快捷方式。</p>
+    </details>
+
+    <details>
+      <summary>余额数字和官网对不上？</summary>
+      <p>DeepSeek 的余额分「赠送余额」和「充值余额」两部分，气泡第二行两个都列出来了。
+         另外赠送额度是有有效期的，过期会被扣掉，最终以官网为准。</p>
+    </details>
+
+    <details>
+      <summary>怎么把它彻底关掉？</summary>
+      <p>右键小猫 →「退出」。它故意不显示在任务栏里（这样才像一只真的趴在桌面上的猫），
+         所以只能通过右键菜单关闭。如果开了开机自启又找不到猫，
+         运行一次程序，然后在右键菜单里取消勾选「开机自动启动」。</p>
+    </details>
+
+    <details>
+      <summary>多久刷新一次余额？会不会很费流量？</summary>
+      <p>默认 5 分钟一次，每次只是一个几百字节的 HTTP 请求，一个月下来流量可以忽略不计。
+         如果嫌不够实时，设置里最短可以调到 20 秒。</p>
+    </details>
+
+    <details>
+      <summary>它会不会很占 CPU？</summary>
+      <p>空闲时约占单核 9%，内存约 40 MB。为了达到这个数字做过专门优化：
+         姿态量化成离散帧 + 缓存，画面没变化时一次绘制调用都不发。</p>
+    </details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <b>DeepSeek 余额桌面宠物</b> v1.0.0<br>
+      纯 Python 标准库实现 · 不含任何第三方依赖 · 不含任何统计上报
+    </div>
+    <div style="text-align:right">
+      本工具为第三方作品，与 DeepSeek 官方无隶属关系<br>
+      本站：<b>yangxinke.top</b><br>
+      余额数据来自官方接口 <b>api.deepseek.com/user/balance</b>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
